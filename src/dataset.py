@@ -6,14 +6,18 @@ from torchvision import transforms
 
 class FaceDataset(Dataset):
     def __init__(self, root_dir):
-        self.root_dir = root_dir
+        super(FaceDataset, self).__init__()  
+
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.root_dir = os.path.join(project_root, root_dir)
+
         self.image_paths = []
         self.labels = []
         self.class_to_idx = {}
         self.idx_to_class = {}
 
-        for idx, person_name in enumerate(sorted(os.listdir(root_dir))):
-            person_path = os.path.join(root_dir, person_name)
+        for idx, person_name in enumerate(sorted(os.listdir(self.root_dir))):
+            person_path = os.path.join(self.root_dir, person_name)
             if not os.path.isdir(person_path):
                 continue
 

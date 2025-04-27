@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -6,13 +7,13 @@ from torch.utils.data import DataLoader, random_split
 from dataset import FaceDataset
 from model import MLP
 
-df = FaceDataset('../processed_dataset')
+df = FaceDataset('processed_dataset')
 train_size = int(0.85 * len(df))
 val_size = len(df) - train_size
 train_dataset, val_dataset = random_split(df, [train_size, val_size])
 
 train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-val_loader = DataLoader(val_dataset, batch=32, shuffle=False)
+val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
 
 input_size = 2304
 hidden_sizes = [512, 128]
@@ -65,3 +66,9 @@ for epoch in range(num_epochs):
     val_accuracy = 100 * correct / total
 
     print(f"Epoch [{epoch+1} / {num_epochs}], Loss Treino: {avg_train_loss:.4f}, Loss Val: {avg_val_loss:.4f}, Acurácia Val: {val_accuracy:.2}%")
+
+save_path = '../trained_models/mlp_face_recognition.pth'
+os.makedirs(os.path.dirname(save_path), exist_ok=True)
+torch.save(model.state_dict(), save_path)
+
+print(f"Modelo salvo em: {save_path}")
