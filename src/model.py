@@ -3,33 +3,62 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class MLP(nn.Module):
-    def __init__(self, input_size, hidden_sizes, num_classes, dropout_rate=0.3):
+    def __init__(self, input_size, hidden_sizes=[1024, 512, 256, 64], num_classes=4, dropout_rate=0.3):
         super(MLP, self).__init__()
-
+        
+        # Validação de parâmetros
+        if not isinstance(hidden_sizes, list) or len(hidden_sizes) == 0:
+            raise ValueError("hidden_sizes deve ser uma lista não vazia")
+            
+        if dropout_rate < 0 or dropout_rate >= 1:
+            raise ValueError("dropout_rate deve estar entre 0 e 1")
+            
+        # Camadas dinâmicas baseadas em hidden_sizes
         layers = []
-        in_features = input_size
-
-        for hidden_size in hidden_sizes:
-            layers.append(nn.Linear(in_features, hidden_size))
+        prev_size = input_size
+        
+        for i, h_size in enumerate(hidden_sizes):
+            layers.append(nn.Linear(prev_size, h_size))
             layers.append(nn.ReLU())
-            layers.append(nn.Dropout(dropout_rate))
-            in_features = hidden_size
-
-        layers.append(nn.Linear(in_features, num_classes))
-
-        self.model = nn.Sequential(*layers)
-
+            
+            # Aplicar dropout apenas se não for a última camada
+            if i < len(hidden_sizes) - 1:
+                layers.append(nn.Dropout(dropout_rate))
+                
+            prev_size = h_size
+            
+        # Camada de saída
+        layers.append(nn.Linear(prev_size, num_classes))
+        
+        self.layers = nn.Sequential(*layers)
+        
+        # Inicialização de pesos
+        self._init_weights()
+        
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+                    
     def forward(self, x):
-        return self.model(x)
+        return self.layers(x)
+        
+    def get_summary(self):
+        """Retorna um resumo da arquitetura"""
+        summary = []
+        for layer in self.layers:
+            if isinstance(layer, nn.Linear):
+                summary.append(f"Linear(in={layer.in_features}, out={layer.out_features})")
+            elif isinstance(layer, nn.Dropout):
+                summary.append(f"Dropout(p={layer.p})")
+            elif isinstance(layer, nn.ReLU):
+                summary.append("ReLU()")
+        return "\n".join(summary)
 
 if __name__ == "__main__":
-    input_size = 4096  # Exemplo
-    hidden_sizes = [2048, 512, 128]
-    num_classes = 5
-
-    model = MLP(input_size, hidden_sizes, num_classes)
-    print(model)
-
-    x = torch.randn(32, input_size)
-    out = model(x)
-    print("Saída do modelo:", out.shape)
+    model = MLP(2304, [1024, 512, 256, 64], 4)
+    print("Resumo do modelo:")
+    print(model.get_summary())
+    print(f"Total de parâmetros: {sum(p.numel() for p in model.parameters())}")
