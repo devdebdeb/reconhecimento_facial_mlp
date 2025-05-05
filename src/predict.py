@@ -2,92 +2,53 @@ import os
 import cv2
 import torch
 import numpy as np
-from torchvision import transforms
-from PIL import Image
 from model import MLP
 
 class FacePredictor:
-    def __init__(self, model_path, idx_to_class, input_size=2304, confidence_threshold=0.7):
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.idx_to_class = idx_to_class
-        self.confidence_threshold = confidence_threshold
-        self.num_classes = len(idx_to_class)
-        
-        # Carregar modelo
-        self.model = MLP(input_size, [1024, 512, 256, 64], self.num_classes)
+    def __init__(self, model_path, class_names, img_size=48, threshold=0.5):
+        self.device      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.class_names = class_names
+        self.threshold   = threshold
+        self.img_size    = (img_size, img_size)
+        self.model       = MLP(img_size*img_size, len(class_names)).to(self.device)
         self.model.load_state_dict(torch.load(model_path, map_location=self.device))
         self.model.eval()
-        self.model.to(self.device)
-        
-        # Transformações
-        self.transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((0.5,), (0.5,))
-        ])
-        
-    def preprocess_image(self, image):
-        """Pré-processa uma imagem para predição"""
-        if isinstance(image, str):
-            image = cv2.imread(image, cv2.IMREAD_GRAYSCALE)
-            if image is None:
-                raise ValueError(f"Não foi possível carregar a imagem")
-                
-        image = cv2.resize(image, (48, 48))
-        image = self.transform(image)
-        return image.unsqueeze(0).to(self.device)
-        
+
+    def preprocess(self, image):
+        gray    = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        resized = cv2.resize(gray, self.img_size)
+        tensor  = (resized.astype(np.float32) / 127.5) - 1.0
+        return torch.FloatTensor(tensor).view(-1).unsqueeze(0).to(self.device)
+
     def predict(self, image):
-        """Faz a predição para uma imagem"""
+        inp = self.preprocess(image)
         with torch.no_grad():
-            inputs = self.preprocess_image(image)
-            outputs = self.model(inputs)
-            probs = torch.softmax(outputs, dim=1)
-            max_prob, pred_idx = torch.max(probs, 1)
-            
-            confidence = max_prob.item()
-            if confidence < self.confidence_threshold:
-                return "Desconhecido", confidence
-                
-            return self.idx_to_class[pred_idx.item()], confidence
-            
-    def predict_batch(self, image_paths):
-        """Faz predição para um lote de imagens"""
-        results = []
-        for path in image_paths:
-            try:
-                pred, conf = self.predict(path)
-                results.append((path, pred, conf))
-            except Exception as e:
-                results.append((path, f"Erro: {str(e)}", 0.0))
-        return results
+            out   = self.model(inp)
+            probs = torch.softmax(out, dim=1)
+            conf, idx = probs.max(1)
+        return (self.class_names[idx], conf.item()) #if conf > self.threshold else ("Desconhecido", 0.0)
+
 
 if __name__ == "__main__":
-    # Configurações
-    CONFIG = {
-        'model_path': './trained_models/best_mlp_model.pth',
-        'idx_to_class': {
-            0: "Andre",
-            1: "Cesar",
-            2: "Enzo",
-            3: "Will"
-        },
-        'confidence_threshold': 0.7
-    }
-    
-    # Exemplo de uso
-    predictor = FacePredictor(**CONFIG)
-    
-    # Testar com imagens
-    test_images = [
-        "minhas_fotos/andre_teste.jpg",
-        "minhas_fotos/cesar_teste.jpg", 
-        "minhas_fotos/enzo_teste.jpg",
-        "minhas_fotos/will_teste.jpg"
-    ]
-    
-    results = predictor.predict_batch(test_images)
-    
-    for path, pred, conf in results:
-        print(f"Imagem: {os.path.basename(path)}")
-        print(f"  Predição: {pred} (Confiança: {conf:.2%})")
-        print("-" * 40)
+    script_dir  = os.path.dirname(os.path.abspath(__file__))
+    project_dir = os.path.abspath(os.path.join(script_dir, os.pardir))
+
+    model_path  = os.path.join(project_dir, "models", "best_model_fold_1.pth")
+
+    photos_dir  = os.path.join(project_dir, "minhas_fotos")
+
+    predictor = FacePredictor(
+        model_path=model_path,
+        class_names=["andre", "cesar", "enzo", "will"]
+    )
+
+    for name in predictor.class_names:
+        filename = f"{name}_teste.jpg"
+        img_path = os.path.join(photos_dir, filename)
+        img = cv2.imread(img_path)
+        if img is None:
+            print(f"[!] Erro ao carregar imagem: {img_path}")
+            continue
+
+        label, conf = predictor.predict(img)
+        print(f"{filename} -> Predição: {label:10s} | Confiança: {conf:.2%}")

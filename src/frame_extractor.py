@@ -1,91 +1,73 @@
 import cv2
 import os
 import time
+from tqdm import tqdm
 
-video_folder = "C:/Users/ANDREMESSINA/reconhecimento-facial-mlp/videos"
+class FrameExtractor:
+    def __init__(self, video_folder, output_folder, frame_interval=7, image_format='.png'):
+        self.video_folder = video_folder
+        self.output_folder = output_folder
+        self.frame_interval = frame_interval
+        self.image_format = image_format
+        os.makedirs(self.output_folder, exist_ok=True)
 
-output_folder = "C:/Users/ANDREMESSINA/reconhecimento-facial-mlp/dataset"
-
-frame_interval = 9
-
-image_format = '.png'
-
-def extract_frames_from_videos(video_dir, output_dir, interval, img_format):
-    os.makedirs(output_dir, exist_ok=True)
-    print(f"Pasta de saída principal criada/verificada em: '{output_dir}'")
-
-    try:
-        video_files = [f for f in os.listdir(video_dir) if os.path.isfile(os.path.join(video_dir, f))]
+    def validate_paths(self):
+        if not os.path.exists(self.video_folder):
+            raise FileNotFoundError(f"Pasta de vídeos não encontrada: {self.video_folder}")
+        video_files = [f for f in os.listdir(self.video_folder) 
+                      if f.lower().endswith(('.mp4', '.avi', '.mov'))]
         if not video_files:
-            print(f"ERRO: Nenhum arquivo encontrado na pasta '{video_dir}'. Verifique o caminho.")
-            return
-    except FileNotFoundError:
-        print(f"ERRO: A pasta de vídeos '{video_dir}' não foi encontrada. Verifique o caminho.")
-        return
-    except Exception as e:
-        print(f"ERRO ao listar arquivos em '{video_dir}': {e}")
-        return
+            raise ValueError(f"Nenhum vídeo encontrado em {self.video_folder}")
+        return video_files
 
-    print(f"Vídeos encontrados: {video_files}")
-    total_start_time = time.time()
+    def extract_frames(self, video_path, output_dir):
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            print(f"Erro ao abrir vídeo: {video_path}")
+            return 0, 0
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        saved_frames = 0
 
-    for video_filename in video_files:
-        video_path = os.path.join(video_dir, video_filename)
+        for frame_idx in range(0, total_frames, self.frame_interval):
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+            ret, frame = cap.read()
+            if not ret:
+                continue
+            frame_path = os.path.join(output_dir, f"frame_{str(saved_frames).zfill(5)}{self.image_format}")
+            cv2.imwrite(frame_path, frame)
+            saved_frames += 1
+        cap.release()
+        return total_frames, saved_frames
 
-        person_name = os.path.splitext(video_filename)[0]
-        if not person_name:
-            print(f"AVISO: Não foi possível extrair nome do arquivo '{video_filename}'. Pulando...")
-            continue
+    def process_all_videos(self):
+        try:
+            video_files = self.validate_paths()
+            print(f"Processando {len(video_files)} vídeos...")
+            total_start = time.time()
 
-        print(f"\n--- Processando vídeo: '{video_filename}' (Pessoa: '{person_name}') ---")
+            for video_file in tqdm(video_files, desc="Processando vídeos"):
+                video_path = os.path.join(self.video_folder, video_file)
+                person_name = os.path.splitext(video_file)[0]
+                output_dir = os.path.join(self.output_folder, person_name)
+                os.makedirs(output_dir, exist_ok=True)
+                start_time = time.time()
+                total_frames, saved_frames = self.extract_frames(video_path, output_dir)
+                elapsed = time.time() - start_time
+                print(f"\n{person_name}: {saved_frames} frames salvos (de {total_frames}) em {elapsed:.2f}s")
 
-        person_output_folder = os.path.join(output_dir, person_name)
-        os.makedirs(person_output_folder, exist_ok=True)
-        print(f"Salvando frames em: '{person_output_folder}'")
+            total_elapsed = time.time() - total_start
+            print(f"\nProcessamento concluído em {total_elapsed:.2f} segundos")
 
-        video_capture = cv2.VideoCapture(video_path)
-        if not video_capture.isOpened():
-            print(f"ERRO: Não foi possível abrir o vídeo '{video_path}'. Pulando...")
-            continue
-
-        fps = video_capture.get(cv2.CAP_PROP_FPS)
-        total_frames = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
-        duration = total_frames / fps if fps > 0 else 0
-        print(f"Info do vídeo: FPS={fps:.2f}, Total de Frames={total_frames}, Duração={duration:.2f}s")
-
-        frame_count = 0
-        saved_frame_count = 0
-        video_start_time = time.time()
-
-        while True:
-            success, frame = video_capture.read()
-
-            if not success:
-                break
-
-            if frame_count % interval == 0:
-
-                frame_filename = f"{person_name}_frame_{str(saved_frame_count).zfill(5)}{img_format}"
-                output_path = os.path.join(person_output_folder, frame_filename)
-
-                cv2.imwrite(output_path, frame)
-                saved_frame_count += 1
-
-                if saved_frame_count % 100 == 0:
-                    print(f"  ... {saved_frame_count} frames salvos...")
-
-            frame_count += 1
-
-        video_capture.release()
-        video_end_time = time.time()
-        print(f"Processamento de '{video_filename}' concluído.")
-        print(f"Total de frames lidos: {frame_count}")
-        print(f"Total de frames salvos: {saved_frame_count}")
-        print(f"Tempo gasto neste vídeo: {video_end_time - video_start_time:.2f} segundos")
-
-    total_end_time = time.time()
-    print(f"\n--- Extração de frames concluída para todos os vídeos ---")
-    print(f"Tempo total gasto: {total_end_time - total_start_time:.2f} segundos")
+        except Exception as e:
+            print(f"Erro durante o processamento: {str(e)}")
 
 if __name__ == "__main__":
-    extract_frames_from_videos(video_folder, output_folder, frame_interval, image_format)
+    config = {
+        'video_folder': "./videos",
+        'output_folder': "./dataset_raw",
+        'frame_interval': 5,
+        'image_format': '.png'
+    }
+    extractor = FrameExtractor(**config)
+    extractor.process_all_videos()
