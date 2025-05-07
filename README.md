@@ -16,16 +16,16 @@ Saída para 4 classes
 
 ⚙️ Execução
 
-# Extrair frames dos vídeos
+### Extrair frames dos vídeos
 python src/frame_extractor.py
 
-# Preprocessamento dos rostos
+### Preprocessamento dos rostos
 python src/preprocess.py
 
-# Treinar o modelo
+### Treinar o modelo
 python src/train.py
 
-# Realizar predições em imagens novas
+### Realizar predições em imagens novas
 python src/predict.py
 
 📁 Estrutura
