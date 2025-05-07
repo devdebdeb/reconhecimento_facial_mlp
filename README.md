@@ -31,17 +31,29 @@ python src/predict.py
 📁 Estrutura
 
 ├── src/
+
 │   ├── dataset.py
+
 │   ├── frame_extractor.py
+
 │   ├── preprocess.py
+
 │   ├── train.py
+
 │   ├── predict.py
+
 │   └── model.py
+
 ├── models/
+
 ├── dataset_raw/
+
 ├── processed_dataset/
+
 ├── minhas_fotos/
+
 ├── README.md
+
 └── RELATORIO.md
 
 👥 Integrantes
