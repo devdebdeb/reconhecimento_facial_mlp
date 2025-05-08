@@ -14,7 +14,7 @@ dataset_raw/
 processed_dataset/
 trained_models/
 models/
-
+videos/
 
 # IDEs
 .vscode/
