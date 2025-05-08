@@ -26,7 +26,7 @@ class FacePredictor:
             out   = self.model(inp)
             probs = torch.softmax(out, dim=1)
             conf, idx = probs.max(1)
-        return (self.class_names[idx], conf.item()) #if conf > self.threshold else ("Desconhecido", 0.0)
+        return (self.class_names[idx], conf.item()) if conf > self.threshold else ("Desconhecido", 0.7)
 
 
 if __name__ == "__main__":
