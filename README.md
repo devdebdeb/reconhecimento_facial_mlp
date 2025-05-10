@@ -119,7 +119,9 @@ pip install -r requirements.txt
 ## 👤 Integrantes
 
 * André Messina
-* \[Inserir demais nomes do grupo, se houver]
+* Cesar Sibila
+* Enzo Takida 
+* Willian Dias
 
 ---
 
